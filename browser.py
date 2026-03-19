@@ -1,6 +1,9 @@
+import gzip
+import io
 import socket
 import ssl
 import time
+
 
 #-------
 # CACHES
@@ -154,7 +157,8 @@ class URL:
         headers = {
             "Host": self.host,
             "Connection": "keep-alive",
-            "User-Agent": "JSBrowser"
+            "User-Agent": "JSBrowser",
+            "Accept-Encoding": "gzip"
         }
         
         # Makes a request to the other server, sending it data through the send method
@@ -188,10 +192,6 @@ class URL:
             header, value = line.split(":", 1)
             # Headers are case-insensitive, and whitespace is insignificant, so both are normalized here
             response_headers[header.casefold()] = value.strip()
-        
-        # Ensures data is sent correctly
-        assert "transfer-encoding" not in response_headers
-        assert "content-encoding" not in response_headers
 
         # ---------
         # REDIRECTS
@@ -218,9 +218,36 @@ class URL:
         # READ BODY
         # ----------------
 
-        # The content is everything after the headers
-        length = int(response_headers.get("content-length", 0))
-        content = response.read(length)
+        # Check for chunked encoding
+        if response_headers.get("transfer-encoding") == "chunked":
+            # The 'b' turns it into a byte string
+            content = b""
+
+            while True:
+                # Read chunk size (hex)
+                line = response.readline().decode("utf8").strip()
+                chunk_size = int(line, 16)
+
+                if chunk_size == 0:
+                    # Consume final CRLF
+                    response.readline()
+                    break
+                
+                chunk = response.read(chunk_size)
+                content += chunk
+
+                # Consume CRLF after chunk
+                response.readline()
+        else:
+            # Read content
+            length = int(response_headers.get("content-length", 0))
+            content = response.read(length)
+
+        # Decompress if needed
+        if response_headers.get("content-encoding") == "gzip":
+            buf = io.BytesIO(content)
+            f = gzip.GzipFile(fileobj=buf)
+            content = f.read()
 
         # -------------
         # CACHE-CONTROL

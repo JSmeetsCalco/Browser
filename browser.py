@@ -12,7 +12,7 @@ class URL:
             self.scheme, url = url.split(":", 1)
         
         # Check that scheme is accepted by browser
-        assert self.scheme in ["http", "https", "file", "data"]
+        assert self.scheme in ["http", "https", "file", "data", "view-source"]
 
         # --------------------------
         # DATA SCHEME (handle first)
@@ -30,6 +30,14 @@ class URL:
         if self.scheme == "file":
             self.host = ""
             self.path = url[1:]
+            return
+        
+        # ------------------
+        # VIEW-SOURCE SCHEME
+        # ------------------
+        if self.scheme == "view-source":
+            # Store the inner URL as a new URL object
+            self.inner_url = URL(url)
             return
         
         # -----------------------
@@ -63,6 +71,10 @@ class URL:
         # Check whether connection is data scheme
         if self.scheme == "data":
             return self.data
+        
+        # Check whether scheme is View-Source
+        if self.scheme == "view-source":
+            return self.inner_url.request()
 
         # Create the socket
         # Family tells you how to find the other computer
@@ -139,6 +151,7 @@ def show(body):
         "&quot;": "\""
     }
 
+    # Loops through the length of the body text per character
     while i < len(body):
         matched = False
 
@@ -169,7 +182,11 @@ def show(body):
 def load(url):
     # Loads web page based on URL.request and show()
     body = url.request()
-    show(body)
+
+    if url.scheme == "view-source":
+        print(body)
+    else:
+        show(body)
 
 if __name__ == "__main__":
     import sys

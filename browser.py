@@ -65,7 +65,11 @@ class URL:
             self.host, port = self.host.split(":", 1)
             self.port = int(port)
 
-    def request(self):
+    def request(self, redirects=0):
+        # Only allow for 5 redirects before giving up on connection
+        if redirects > 5:
+            raise Exception("Too many redirects")
+        
         # First check whether connection if file. If so, no socket needs to be created
         if self.scheme == "file":
             with open(self.path, "r", encoding="utf8") as f:
@@ -145,6 +149,25 @@ class URL:
         # Ensures data is sent correctly
         assert "transfer-encoding" not in response_headers
         assert "content-encoding" not in response_headers
+
+        # Check for redirect code (3xx) in status
+        if status.startswith("3"):
+            # Redirect should always come with a redirect location. Get that location from the response_headers
+            location = response_headers.get("location")
+
+            # Check for if location header is missing
+            if not location:
+                raise Exception("Redirect without Location header")
+            
+            # Handle relative URLs
+            if location.startswith("/"):
+                location = f"{self.scheme}://{self.host}{location}"
+            
+            # Follow redirect
+            new_url = URL(location)
+            return new_url.request(redirects + 1)
+
+
 
         # The content is everything after the headers
         length = int(response_headers.get("content-length", 0))

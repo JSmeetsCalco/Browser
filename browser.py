@@ -1,8 +1,15 @@
 import socket
 import ssl
+import time
 
-# Create connections cache
+#-------
+# CACHES
+#-------
+# Cache to store socket connections for multiple use
 connections = {}
+
+# Cache for HTTP responses to reduce multiple downloads
+cache = {}
 
 class URL:
     def __init__(self, url):
@@ -66,10 +73,24 @@ class URL:
             self.port = int(port)
 
     def request(self, redirects=0):
+        #---------
+        # REDIRECT
+        # --------
+
         # Only allow for 5 redirects before giving up on connection
         if redirects > 5:
             raise Exception("Too many redirects")
         
+        # -------------
+        # DEF CACHE KEY
+        # -------------
+
+        key = (self.scheme, self.host, self.port, self.path)
+        
+        # ------------
+        # SCHEME CHECK
+        # ------------
+
         # First check whether connection if file. If so, no socket needs to be created
         if self.scheme == "file":
             with open(self.path, "r", encoding="utf8") as f:
@@ -83,18 +104,31 @@ class URL:
         if self.scheme == "view-source":
             return self.inner_url.request()
         
+        # ------------
+        # CHECK CACHES
+        # ------------
+        if key in cache:
+            entry = cache[key]
+            if entry["expires"] is None or entry["expires"] > time.time():
+                return entry["body"]
+            else:
+                # Expired
+                del cache[key]
+
         # Create key to be able to store socket connections
         key = (self.host, self.port)
 
         # Reload key if it is already in connections
         if key in connections:
             s = connections[key]
-        else:
 
-            # Create the socket
-            # Family tells you how to find the other computer
-            # Type describes the sort of conversation that's going to happen (Stream = each computer can send arbitrary amounts of data)
-            # Protocol descibres the steps by which the two computers will establish a connection
+        # -------------
+        # CREATE SOCKET
+        # -------------
+
+        else:
+            # Create the socket (family = how to find other computer; type = what kind of connection (stream = each computer can send arbitrary amounts of data)
+            # Protocol = describes steps by which teh two computers will establish a connection)
             s = socket.socket(
                 family=socket.AF_INET,
                 type=socket.SOCK_STREAM,
@@ -111,6 +145,10 @@ class URL:
 
             # Store connection in connections cache
             connections[key] = s
+
+        # --------------------
+        # REQUEST AND RESPONSE
+        # --------------------
 
         # Defining headers to send with request
         headers = {
@@ -135,8 +173,13 @@ class URL:
         statusline = response.readline().decode("utf8")
         version, status, explanation = statusline.split(" ", 2)
 
+        # ----------------
+        # RESPONSE HEADERS
+        # ----------------
+
         # After the status line come the headers:
         response_headers = {}
+
         while True:
             line = response.readline().decode("utf8")
             # Break at the final blank line
@@ -149,6 +192,10 @@ class URL:
         # Ensures data is sent correctly
         assert "transfer-encoding" not in response_headers
         assert "content-encoding" not in response_headers
+
+        # ---------
+        # REDIRECTS
+        # ---------
 
         # Check for redirect code (3xx) in status
         if status.startswith("3"):
@@ -166,15 +213,49 @@ class URL:
             # Follow redirect
             new_url = URL(location)
             return new_url.request(redirects + 1)
-
-
+        
+        # ----------------
+        # READ BODY
+        # ----------------
 
         # The content is everything after the headers
         length = int(response_headers.get("content-length", 0))
         content = response.read(length)
 
-        # Return the body, to be displayed
-        return content.decode("utf8")
+        # -------------
+        # CACHE-CONTROL
+        # -------------
+        cache_control = response_headers.get("cache-control", "")
+
+        should_cache = False
+        expiry = None
+
+        # Check whether content should be cached
+        if status in ["200", "301", "404"]:
+            if "no-store" in cache_control:
+                should_cache = False
+            elif "max-age" in cache_control:
+                try:
+                    max_age = int(cache_control.split("max-age=")[1].split(",")[0])
+                    expiry = time.time() + max_age
+                    should_cache = True
+                except:
+                    pass
+            elif cache_control == "":
+                should_cache = True
+                expiry = None
+
+        # Store cache
+        decoded = content.decode("utf8")
+
+        if should_cache:
+            cache[key] = {
+                "body": decoded,
+                "expires": expiry
+            }
+        
+        # Return body to be displayed
+        return decoded
 
 def show(body):
     # Prints only the actual text, not the tags of the HTML

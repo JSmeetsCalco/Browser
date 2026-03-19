@@ -129,15 +129,42 @@ class URL:
 def show(body):
     # Prints only the actual text, not the tags of the HTML
     in_tag = False
+    i = 0
 
-    # Loops through individual characters in the body, and only prints them if they are not part of HTML tags
-    for i, c in enumerate(body):
+    # Dictionary of supported entities
+    entities = {
+        "&lt;": "<",
+        "&gt;": ">",
+        "&amp;": "&",      # easy to add more
+        "&quot;": "\""
+    }
+
+    while i < len(body):
+        matched = False
+
+        # Check if we're at the start of any known entity
+        if body[i] == "&":
+            semicolon = body.find(";", i)
+            if semicolon != -1:
+                entity = body[i:semicolon+1]
+                if entity in entities:
+                    print(entities[entity], end="")
+                    i = semicolon + 1
+                    continue
+
+        if matched:
+            continue
+
+        c = body[i]
+
         if c == "<":
             in_tag = True
         elif c == ">":
             in_tag = False
         elif not in_tag:
             print(c, end="")
+
+        i += 1
 
 def load(url):
     # Loads web page based on URL.request and show()

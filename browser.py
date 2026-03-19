@@ -1,6 +1,9 @@
 import socket
 import ssl
 
+# Create connections cache
+connections = {}
+
 class URL:
     def __init__(self, url):
         # Split schemes
@@ -75,28 +78,40 @@ class URL:
         # Check whether scheme is View-Source
         if self.scheme == "view-source":
             return self.inner_url.request()
+        
+        # Create key to be able to store socket connections
+        key = (self.host, self.port)
 
-        # Create the socket
-        # Family tells you how to find the other computer
-        # Type describes the sort of conversation that's going to happen (Stream = each computer can send arbitrary amounts of data)
-        # Protocol descibres the steps by which the two computers will establish a connection
-        s = socket.socket(
-            family=socket.AF_INET,
-            type=socket.SOCK_STREAM,
-            proto=socket.IPPROTO_TCP
-        )
-        # Connects the socket to the other computer (host and port)
-        s.connect((self.host, self.port))
+        # Reload key if it is already in connections
+        if key in connections:
+            s = connections[key]
+        else:
 
-        # If the site uses HTTPS, wrap the socket using the ssl library
-        if self.scheme == "https":
-            ctx = ssl.create_default_context()
-            s = ctx.wrap_socket(s, server_hostname=self.host)
+            # Create the socket
+            # Family tells you how to find the other computer
+            # Type describes the sort of conversation that's going to happen (Stream = each computer can send arbitrary amounts of data)
+            # Protocol descibres the steps by which the two computers will establish a connection
+            s = socket.socket(
+                family=socket.AF_INET,
+                type=socket.SOCK_STREAM,
+                proto=socket.IPPROTO_TCP
+            )
+
+            # Connects the socket to the other computer (host and port)
+            s.connect((self.host, self.port))
+
+            # If the site uses HTTPS, wrap the socket using the ssl library
+            if self.scheme == "https":
+                ctx = ssl.create_default_context()
+                s = ctx.wrap_socket(s, server_hostname=self.host)
+
+            # Store connection in connections cache
+            connections[key] = s
 
         # Defining headers to send with request
         headers = {
             "Host": self.host,
-            "Connection": "close",
+            "Connection": "keep-alive",
             "User-Agent": "JSBrowser"
         }
         
@@ -110,16 +125,16 @@ class URL:
         # If you see an error about str versus bytes, it's because you forgot to call encode or decode somewhere
 
         # Read's the server's response
-        response = s.makefile("r", encoding="utf8", newline="\r\n")
+        response = s.makefile("rb")
 
         # Splits that response into pieces
-        statusline = response.readline()
+        statusline = response.readline().decode("utf8")
         version, status, explanation = statusline.split(" ", 2)
 
         # After the status line come the headers:
         response_headers = {}
         while True:
-            line = response.readline()
+            line = response.readline().decode("utf8")
             # Break at the final blank line
             if line == "\r\n": break
             # Each line is split at the colon, and header names are mapped to header values
@@ -132,11 +147,11 @@ class URL:
         assert "content-encoding" not in response_headers
 
         # The content is everything after the headers
-        content = response.read()
-        s.close()
+        length = int(response_headers.get("content-length", 0))
+        content = response.read(length)
 
         # Return the body, to be displayed
-        return content
+        return content.decode("utf8")
 
 def show(body):
     # Prints only the actual text, not the tags of the HTML

@@ -50,16 +50,13 @@ class Browser:
     
     def scrolldown(self, event):
         self.scroll += SCROLL_STEP
+        self.clamp_scroll()
         self.draw()
     
     def scrollup(self, event):
         # Scroll down by scroll step
         self.scroll -= SCROLL_STEP
-
-        # Stop scrolling at the beginning of page
-        if self.scroll < 0:
-            self.scroll = 0
-        
+        self.clamp_scroll()
         self.draw()
     
     def on_mousewheel(self, event):
@@ -69,11 +66,21 @@ class Browser:
         else:
             self.scroll += SCROLL_STEP
         
-        # Stop scrolling up at top of page
-        if self.scroll < 0:
-            self.scroll = 0
+        self.clamp_scroll()
         
         self.draw()
+    
+    def clamp_scroll(self):
+        if not self.display_list:
+            return
+        
+        max_y = max(y for x, y, c in self.display_list)
+        max_scroll = max(0, max_y - self.height)
+
+        if self.scroll < 0:
+            self.scroll = 0
+        elif self.scroll > max_scroll:
+            self.scroll = max_scroll
     
     def resize(self, event):
         self.width = event.width

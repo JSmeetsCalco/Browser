@@ -12,8 +12,10 @@ class Browser:
             width=WIDTH,
             height=HEIGHT
         )
-        self.canvas.pack()
+        self.canvas.pack(fill="both", expand=True)
         self.scroll = 0
+        self.width = WIDTH
+        self.height = HEIGHT
 
         # Bind down arrow to scroll down function
         self.window.bind("<Down>", self.scrolldown)
@@ -23,12 +25,15 @@ class Browser:
 
         # Bind mousewheel to scrolling
         self.window.bind("<MouseWheel>", self.on_mousewheel)
+
+        # Bind resize event
+        self.window.bind("<Configure>", self.resize)
     
     def load(self, url):
         # Loads web page based on URL.request() and show()
         body = url.request()
-        text = lex(body)
-        self.display_list = layout(text)
+        self.text = lex(body)
+        self.display_list = layout(self.text, self.width)
         self.draw()
 
     def draw(self):
@@ -37,7 +42,7 @@ class Browser:
 
         for x, y, c in self.display_list:
             # Skip drawing characters that are offscreen
-            if y > self.scroll + HEIGHT: continue
+            if y > self.scroll + self.height: continue
             if y + VSTEP < self.scroll: continue
             
             # Print characters that are onscreen
@@ -69,6 +74,15 @@ class Browser:
             self.scroll = 0
         
         self.draw()
+    
+    def resize(self, event):
+        self.width = event.width
+        self.height = event.height
+
+        # Recompute layout if content exists
+        if hasattr(self, "text"):
+            self.display_list = layout(self.text, self.width)
+            self.draw()
 
 if __name__ == "__main__":
     import sys

@@ -17,7 +17,7 @@ def lex(body):
     
     return text
 
-def layout(text):
+def layout(text, width):
     display_list = []
     # Displaces cursor so not all text is printed in the same spot
     cursor_x, cursor_y = HSTEP, VSTEP
@@ -35,7 +35,7 @@ def layout(text):
         cursor_x += HSTEP
 
         # Wrap to next line if you reach the end of the canvas
-        if cursor_x >= WIDTH - HSTEP:
+        if cursor_x >= width - HSTEP:
             cursor_y += VSTEP
             cursor_x = HSTEP
     

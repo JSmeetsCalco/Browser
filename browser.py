@@ -40,6 +40,7 @@ class Browser:
         # Delete the previous canvas layout to allow scrolling without text printed over each other
         self.canvas.delete("all")
 
+        # Draw text
         for x, y, c in self.display_list:
             # Skip drawing characters that are offscreen
             if y > self.scroll + self.height: continue
@@ -47,6 +48,37 @@ class Browser:
             
             # Print characters that are onscreen
             self.canvas.create_text(x, y - self.scroll, text=c)
+        
+        # Scrollbar logic
+        if not self.display_list:
+            return
+        
+        max_y = max(y for x, y, c in self.display_list)
+
+        # Hide scrollbar if everything fits
+        if max_y <= self.height:
+            return
+        
+        # Compute scrollbar size
+        bar_height = self.height * (self.height / max_y)
+
+        # Compute scrollbar position
+        max_scroll = max_y - self.height
+
+        if max_scroll == 0:
+            bar_top = 0
+        else:
+            bar_top = (self.scroll / max_scroll) * (self.height - bar_height)
+
+        # Draw scrollbar
+        self.canvas.create_rectangle(
+            self.width - 12,
+            bar_top,
+            self.width - 4,
+            bar_top + bar_height,
+            fill="blue",
+            outline="black"
+        )
     
     def scrolldown(self, event):
         self.scroll += SCROLL_STEP

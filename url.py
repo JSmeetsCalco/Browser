@@ -15,6 +15,14 @@ cache = {}
 
 class URL:
     def __init__(self, url):
+        # Handle faulty/blank URLs:
+        if url == "about:blank":
+            self.scheme = "about"
+            self.path = "blank"
+            self.host = ""
+            self.port = ""
+            return
+
         # Split schemes
         # Split HTTP(S) and file URLs
         if "://" in url:
@@ -24,7 +32,7 @@ class URL:
             self.scheme, url = url.split(":", 1)
         
         # Check that scheme is accepted by browser
-        assert self.scheme in ["http", "https", "file", "data", "view-source"]
+        assert self.scheme in ["http", "https", "file", "data", "view-source", "about"]
 
         # --------------------------
         # DATA SCHEME (handle first)
@@ -109,6 +117,9 @@ class URL:
         # Check whether scheme is View-Source
         if self.scheme == "view-source":
             return self.inner_url.request()
+        
+        if self.scheme == "about":
+            return ""
         
         # ------------
         # CHECK CACHES

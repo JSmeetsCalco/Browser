@@ -34,8 +34,13 @@ class Browser:
         self.window.bind("<Configure>", self.resize)
     
     def load(self, url):
-        # Loads web page based on URL.request() and show()
-        body = url.request()
+        try:
+            # Loads web page based on URL.request() and show()
+            body = url.request()
+        except Exception:
+            # Fallback to blank page if URL does not exist
+            body = URL("about:blank").request()
+
         self.text = lex(body)
         self.display_list = layout(self.text, self.width)
         self.draw()
@@ -154,5 +159,21 @@ class Browser:
 
 if __name__ == "__main__":
     import sys
-    Browser().load(URL(sys.argv[1]))
+    
+    browser = Browser()
+
+    # If no URL is provided, show about:blank
+    if len(sys.argv) < 2:
+        url = URL("about:blank")
+    else:
+        try:
+            url = URL(sys.argv[1])
+        except Exception:
+            # Fallback to about:blank if URL is malformed
+            url = URL("about:blank")
+
+    # Load the URL safely
+    browser.load(url)
+
+    # Start Tkinter event loop
     tkinter.mainloop()

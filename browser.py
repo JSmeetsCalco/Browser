@@ -1,3 +1,4 @@
+import os
 import tkinter
 from url import URL
 from functions import lex, layout, WIDTH, HEIGHT, VSTEP, HSTEP, SCROLL_STEP
@@ -16,6 +17,9 @@ class Browser:
         self.scroll = 0
         self.width = WIDTH
         self.height = HEIGHT
+
+        # Store images, otherwise they disappear
+        self.images = {}
 
         # Bind down arrow to scroll down function
         self.window.bind("<Down>", self.scrolldown)
@@ -46,8 +50,14 @@ class Browser:
             if y > self.scroll + self.height: continue
             if y + VSTEP < self.scroll: continue
             
-            # Print characters that are onscreen
-            self.canvas.create_text(x, y - self.scroll, text=c)
+            # Check whether character is an emoji
+            emoji = self.get_emoji(c)
+
+            if emoji:
+                self.canvas.create_image(x, y - self.scroll, image=emoji, anchor="center")
+            else:
+                # Print characters that are onscreen
+                self.canvas.create_text(x, y - self.scroll, text=c)
         
         # Scrollbar logic
         if not self.display_list:
@@ -122,6 +132,25 @@ class Browser:
         if hasattr(self, "text"):
             self.display_list = layout(self.text, self.width)
             self.draw()
+
+    def get_emoji(self, char):
+        # Convert unicode to hexcode
+        codepoint = f"{ord(char):X}"
+
+        # Add codepoint to images cache if not in there already
+        if codepoint not in self.images:
+            # Path to file
+            filename = f"Emojis/{codepoint}.png"
+
+            # Convert image to Tkinter image
+            if os.path.exists(filename):
+                self.images[codepoint] = tkinter.PhotoImage(file=filename)
+            else:
+                return None
+        
+        # Return image from cache
+        return self.images[codepoint]
+
 
 if __name__ == "__main__":
     import sys
